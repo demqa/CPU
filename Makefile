@@ -12,8 +12,8 @@ cpu: cpu.o stack.o
 cpu.o: cpu.cpp
 	$(CC) $(CFLAGS) cpu.cpp
 
-stack.o: stack.cpp
-	$(CC) $(CFLAGS) stack.cpp
+stack.o: stack/stack.cpp
+	$(CC) $(CFLAGS) stack/stack.cpp
 
 clean:
 	rm -rf *.o cpu

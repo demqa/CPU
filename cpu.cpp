@@ -1,6 +1,6 @@
-#include "string_lib.h"
-#include "stack.h"
-#include "print_func.cpp"
+#include "string_lib/string_lib.h"
+#include "stack/stack.h"
+#include "stack/print_func.cpp"
 
 #include "cpu_config.h"
 
