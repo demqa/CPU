@@ -21,9 +21,10 @@
 enum StatusCode{
     STACK_IS_OK                     = 0,
     RESULT_IS_UNKNOWN               = 0,
-    DUMP_COMMITED                   = 1 << 31,
-    STACK_IS_DESTRUCTED             = 1 << 30,
+
     STACK_IS_EMPTY                  = 1 << 29,
+    STACK_IS_DESTRUCTED             = 1 << 30,
+    DUMP_COMMITED                   = 1 << 31,
     
     STACK_IS_NULLPTR                = 1 << 0,
     STACK_IS_ALREADY_EMPTY          = 1 << 1,
@@ -35,12 +36,14 @@ enum StatusCode{
     STACK_CAPACITY_LESS_THAN_ZERO   = 1 << 6,
     STACK_SIZE_LESS_THAN_ZERO       = 1 << 7,
 
-    STACK_RESIZE_WRONG_PARAM        = 1 << 20,
+    STACK_RESIZE_WRONG_PARAM        = 1 << 14,
     
 #if DEBUG_MODE & STACK_INFO
+    STACK_INFO_IS_OK                = 1 << 15,
+    STACK_IS_ALREADY_CONSTRUCTED    = 1 << 16,
+
     STACK_INFO_IS_EMPTY             = 1 << 21,
     STACK_INFO_RUINED               = 1 << 22,
-    STACK_INFO_IS_OK                = 1 << 15,
 #endif
 
 #if DEBUG_MODE & HIPPO_GUARD
@@ -62,9 +65,6 @@ enum ResizeMode{
     INCREASE_CAPACITY = 0xD0DE,
     DECREASE_CAPACITY = 0xF0E5,
 };
-
-const u_int64_t HIPPO = 0xAC1DC1DA;
-const u_int64_t POTAM = 0xD1CAAC1D;
 
 const int STRING_MAX_SIZE = 100;
 
@@ -105,20 +105,8 @@ struct stack_t{
 
 };
 
-#if DEBUG_MODE & STACK_INFO
-    StatusCode StackInfoStatus(stack_t *stack);
-#endif
-
-#ifdef DEBUG_MODE
-    #define ASSERT_OK(stack){                    \
-        if (StackVerify(stack) != STACK_IS_OK){   \
-            StackDump(stack);                      \
-            assert(!"ok" && "Bad stack");           \
-        }                                            \
-    }
-#endif
-
-stack_t *StackCtor_(stack_t *stack, size_t capacity, int line_created, const char file[STRING_MAX_SIZE], const char func[STRING_MAX_SIZE], const char stack_name[STRING_MAX_SIZE], void (* PrintElem)(void *, size_t, FILE *));
+stack_t *StackCtor_(stack_t *stack, size_t capacity, int line_created, const char file[STRING_MAX_SIZE], const char func[STRING_MAX_SIZE],
+                    const char stack_name[STRING_MAX_SIZE], void (* PrintElem)(void *, size_t, FILE *));
 StatusCode StackDtor(stack_t *stack);
 Elem_t StackPop(stack_t *stack);
 Elem_t StackTop(stack_t *stack);
@@ -132,21 +120,39 @@ void PrintHex(void *memory, size_t size, FILE *stream);
 
 StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE], const char func[STRING_MAX_SIZE]);
 
-#define STACK_STATUS(status_code){   \
-    stack->status |= status_code;     \
-    StackDump(stack);                  \
-    return (StatusCode) stack->status;  \
+#define STACK_STATUS(status_code){              \
+    stack->status |= status_code;                \
+    StackDump(stack);                             \
+    return (StatusCode) stack->status;             \
 }
 
 // TODO DO WHILE(0)
+
+#if DEBUG_MODE & HIPPO_GUARD
+    const u_int64_t HIPPO = 0xAC1DC1DA;
+    const u_int64_t POTAM = 0xD1CAAC1D;
+#endif
+
+#if DEBUG_MODE & STACK_INFO
+    StatusCode StackInfoStatus(stack_t *stack);
+#endif
+
+#ifdef DEBUG_MODE
+    #define ASSERT_OK(stack){                    \
+        if (StackVerify(stack) != STACK_IS_OK){   \
+            StackDump(stack);                      \
+            assert(!"ok" && "Bad stack");           \
+        }                                            \
+    }
+#endif
 
 #if DEBUG_MODE & STACK_INFO
     #define StackCtor(stack, capacity, func){                                               \
         StackCtor_(stack, capacity, __LINE__, __FILE__, __PRETTY_FUNCTION__, #stack, func);  \
     }
 #else
-    #define StackCtor(stack, capacity, func){             \
-        StackCtor_(stack, capacity, 0, "", "", "", func);  \
+    #define StackCtor(stack, capacity, func){                                               \
+        StackCtor_(stack, capacity, 0, "", "", "", func);                                    \
     }
 #endif
 
@@ -160,14 +166,24 @@ StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE]
         printf("%s ", #error);  \
 }
 
-#define PRINT_WARNING(warn){  \
-    if (stack_status & warn){  \
-        printf("%s ", #warn);   \
-        stack->status &= ~warn;  \
-    }                             \
-}
-
+#if DEBUG_MODE & HASH_GUARD
+    #define PRINT_WARNING(warn){                         \
+        if (stack_status & warn){                         \
+            printf("%s ", #warn);                          \
+            stack->status &= ~warn;                         \
+            stack->hash_stack = CalculateHashStack(stack);   \
+        }                                                     \
+    }
+#else
+    #define PRINT_WARNING(warn){                       \
+        if (stack_status & warn){                       \
+            printf("%s ", #warn);                        \
+            stack->status &= ~warn;                       \
+        }                                                  \
+    }
+#endif     
 
 #define ADDRESS(ptr, type) (u_int64_t)(ptr - (type *)nullptr)
+
 
 #endif

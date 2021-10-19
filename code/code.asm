@@ -1,5 +1,4 @@
 push 10
-out
 push 25.5
 add
 out
@@ -8,8 +7,8 @@ sub
 out
 out
 out
-push 666
 push 222
+push 666
 div
 out
 mul

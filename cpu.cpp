@@ -1,22 +1,84 @@
-#include "string_lib/string_lib.h"
+#include <string.h>
+#include "cpu_config.h"
 #include "stack/stack.h"
 #include "stack/print_func.cpp"
 
-#include "cpu_config.h"
+#define PROCESSING_ERROR(msg){                                                                          \
+    printf("instruction #%d [%s:%d] message = %s\n", instruction, __PRETTY_FUNCTION__, __LINE__, #msg);  \
+    StackDtor(&stack);                                                                                    \
+    return 0;                                                                                              \
+}
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[])
+{
 
-    Text text = {};
-    int error_code = 0;
+    Header file_info = {};
+    char *ptr    = nullptr;
+    char *buffer = nullptr;
 
     if (argc == 2)
     {
-        error_code = ConstructText(argv[1], &text);
-        CheckError(&error_code);
+        FILE *stream = fopen(argv[1], "rb");
+        if (stream == nullptr)
+        {
+            perror("FATAL ERROR, STREAM IS NULL");
+            return 0;
+        }
+
+        ptr = (char *) calloc(sizeof(Header), sizeof(char));
+
+        size_t n_bytes = fread(ptr, sizeof(char), sizeof(Header), stream);
+        if (ferror(stream))
+        {
+            perror("THERE IS SOME ERROR IN FILE READING");
+        }
+        if (feof(stream))
+        {
+            perror("EOF REACHED");
+        }
+        if (n_bytes != sizeof(Header))
+        {
+            perror("THIS BINARY HAS AN ERROR. TOO SHORT TO BE MY FILE");
+            fclose(stream);
+            return 0;
+        }
+
+        if (*((u_int32_t *)ptr) == signature)
+        {
+            file_info = *(Header *)ptr;
+        }
+        else
+        {
+            perror("THIS BINARY ISNT MINE\n");
+            fclose(stream);
+            return 0;
+        }
+
+        if (file_info.version != version)
+        {
+            perror("THIS BINARY IS OLDER THAN PROGRAM, RECOMPILE ASM\n");
+            fclose(stream);
+            return 0;
+        }
+
+        buffer = (char *) calloc(file_info.buffsize + 1, sizeof(char));
+
+        n_bytes = fread(buffer, sizeof(char), file_info.buffsize + 1, stream);
+        if (n_bytes != file_info.buffsize)
+        {
+            perror("WRONG BUFFSIZE or smth, i dont really know how to call this error (file hasnt reached eof)");
+        }
+
+        // for (size_t i = 0; i < sizeof(Header) + file_info.buffsize; ++i){
+        //     printf("%02x ", *((u_int8_t *)buffer + i));
+        // }
+        // printf("\n");
+
+        fclose(stream);
     }
     else
     {
-        printf("give me nice arguments, pls\n");
+        perror("give me nice arguments, pls\n");
         return 0;
     }
 
@@ -24,20 +86,29 @@ int main(int argc, char *argv[]){
 
     StackCtor(&stack, 0, PrintDouble);
 
-    for (int i = 0; i < text.nlines; ++i){
-        char command[20];
-        double num = NAN;
+    char *ip = nullptr;
+    int instruction = 1;
 
-        int count = sscanf(text.lines[i].ptr, "%s %lf", &command, &num);
+    for (ip = buffer; ip < buffer + file_info.buffsize; ++instruction)
+    {
+        Command command = *(Command *)ip;
+        ip += sizeof(Command);
 
-        if (count == 1)
+        if (command == PUSH)
         {
-            if (strcmp(command, "pop") == 0)
+            Elem_t num = *(Elem_t *)ip;
+            ip += sizeof(Elem_t);
+
+            StackPush(&stack, num);
+        }
+        else
+        {
+            if (command == POP)
             {
                 StackPop(&stack);
             }
             else
-            if (strcmp(command, "add") == 0)
+            if (command == ADD)
             {
                 double x = 0;
                 x += StackPop(&stack);
@@ -45,13 +116,27 @@ int main(int argc, char *argv[]){
 
                 if (isnan(x))
                 {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_STACK_POPPING_WHEN_EMPTY);
+                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
                 }
                 
                 StackPush(&stack, x);
             }
             else
-            if (strcmp(command, "sub") == 0)
+            if (command == MUL)
+            {
+                double x = 1;
+                x *= StackPop(&stack);
+                x *= StackPop(&stack);
+
+                if (isnan(x))
+                {
+                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
+                }
+
+                StackPush(&stack, x);
+            }
+            else
+            if (command == SUB)
             {
                 double x = 0;
                 x -= StackPop(&stack);
@@ -59,27 +144,13 @@ int main(int argc, char *argv[]){
 
                 if (isnan(x))
                 {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_STACK_POPPING_WHEN_EMPTY);
+                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
                 }
                 
                 StackPush(&stack, x);
             }
             else
-            if (strcmp(command, "mul") == 0)
-            {
-                double x = 1;
-                x *= StackPop(&stack);
-                x *= StackPop(&stack);
-
-                if (isnan(x))
-                {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_STACK_POPPING_WHEN_EMPTY);
-                }
-
-                StackPush(&stack, x);
-            }
-            else
-            if (strcmp(command, "div") == 0)
+            if (command == DIV)
             {
                 double x = 1;
                 x /= StackPop(&stack);
@@ -87,64 +158,49 @@ int main(int argc, char *argv[]){
 
                 if (isnan(x))
                 {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_STACK_POPPING_WHEN_EMPTY);
+                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
                 }
 
                 StackPush(&stack, x);
-                
             }
             else
-            if (strcmp(command, "out") == 0)
+            if (command == OUT)
             {
                 double x = StackTop(&stack);
 
                 if (isnan(x))
                 {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_STACK_TOP_WHEN_EMPTY);
+                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_TOP_WHEN_EMPTY);
                 }
 
                 printf("top = %lf\n", x);
                 
             }
             else
-            if (strcmp(command, "hlt") == 0)
+            if (command == HLT)
             {
-                DestructText(&text);
                 StackDtor(&stack);
                 printf("end\n");
                 return 0;
             }
             else
+            if (command == DUMP)
             {
-                COMPILE_ERROR(REWRITE_ASSEMBLER_UNKNOWN_COMMAND);
-            }
-
-        }
-        else
-        if (count == 2)
-        {
-            if (strcmp(command, "push") == 0)
-            {   
-                if (isnan(num))
-                {
-                    COMPILE_ERROR(REWRITE_ASSEMBLER_PUSH_NUM_IS_NAN);
-                }
-
-                StackPush(&stack, num);
+                // TODO
+                printf("dump\n");
             }
             else
             {
-                printf("i = %d\n", i);
-                COMPILE_ERROR(REWRITE_ASSEMBLER_UNKNOWN_COMMAND);
+                PROCESSING_ERROR(UNKNOWN_COMMAND);
             }
-        }
-        else
-        {
-            COMPILE_ERROR(REWRITE_ASSEMBLER_EMPTY_LINE);
         }
     }
 
-    COMPILE_ERROR(REWRITE_ASSEMBLER_THERE_IS_NO_HLT);
+    perror("WRONG_ASSEMBLER_CODE, NO HLT");
+    StackDtor(&stack);
+
+    free(ptr);
+    free(buffer);
 
     return 0;
 }
