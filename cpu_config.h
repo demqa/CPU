@@ -6,7 +6,7 @@
 
 #include <math.h>
 
-u_int32_t signature = 'SSD';
+u_int32_t signature = 'DSS';
 u_int32_t version = 1;
 
 typedef double    Elem_t;

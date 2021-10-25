@@ -62,8 +62,11 @@ int main(int argc, char *argv[])
         }
 
         buffer = (char *) calloc(file_info.buffsize + 1, sizeof(char));
+                                                // because read want to do smth
+                                                // with End Of File
+                                                // I think
 
-        n_bytes = fread(buffer, sizeof(char), file_info.buffsize + 1, stream);
+        n_bytes = fread(buffer, sizeof(char), file_info.buffsize, stream);
         if (n_bytes != file_info.buffsize)
         {
             perror("WRONG BUFFSIZE or smth, i dont really know how to call this error (file hasnt reached eof)");

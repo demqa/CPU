@@ -16,7 +16,6 @@ void PrintHex(void *ptr, size_t size, FILE *stream)
             fprintf(stream, "%02x ", *((u_int8_t *)c));
         }
     }
-    fprintf(stream, "\n");
 }
 
 int main(int argc, char *argv[])
@@ -35,19 +34,22 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    FILE *stream = fopen(argv[2], "wb");
+    FILE *stream  = fopen(argv[2],  "wb");
+    FILE *listing = fopen("listing", "w");
 
-    if (stream == nullptr)
+    if (stream == nullptr || listing == nullptr)
     {
         printf("OOPS, FATAL ERROR\n");
         return -1;
     }
 
-    char *binary_code = (char *) calloc(text.nlines * (sizeof(Elem_t) + sizeof(Command)) + sizeof(Header) + 1, sizeof(char));
+    char *header_ptr = (char *) calloc(text.nlines * (sizeof(Elem_t) + sizeof(Command)) + sizeof(Header) + 1, sizeof(char));
 
-    char *ptr = binary_code;
+    char *ptr = header_ptr;
 
     ptr += sizeof(Header);
+
+    char *binary = ptr;
 
     for (int i = 0; i < text.nlines; ++i)
     {
@@ -72,22 +74,21 @@ int main(int argc, char *argv[])
         {
             *((Command *)ptr) = code;
 
-            // fprintf(stream, "%d\n", code);
-
-            // fprint(listing, format, something);
+            fprintf(listing, "%04x %4s        %02x\n", ptr - binary, command, code);
 
             ptr += sizeof(Command);
         }
         else
         if (count == 2)
         {
-            // fprintf(stream, "%d %lf\n", code, num);
+            fprintf(listing, "%04x %4s %06.2lf %02x %08x\n", ptr - binary, command, num, code, num);
+
             *((Command *)ptr) = code;
-            // fprint(listing, format, something);
+            
             ptr += sizeof(Command);
 
-            *((Elem_t *)ptr) = num;
-            // fprint(listing, format, something);
+            *((Elem_t *)ptr)  = num;
+
             ptr += sizeof(Elem_t);
         }
         else
@@ -106,8 +107,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    size_t buffsize = ptr - binary_code - sizeof(Header);
-    // printf("buffsize = %d\n", buffsize);
+    size_t buffsize     = ptr - binary;
 
     Header header = {};
 
@@ -115,22 +115,15 @@ int main(int argc, char *argv[])
     header.version      = version;
     header.buffsize     = buffsize;
 
-    *((Header *)binary_code) = header;
+    *((Header *)header_ptr) = header;
 
-    size_t nbytes = fwrite(binary_code, sizeof(char), sizeof(Header) + buffsize, stream);
+    size_t nbytes = fwrite(header_ptr, sizeof(char), sizeof(Header) + buffsize, stream);
     if (nbytes != sizeof(Header) + buffsize)
     {
         COMPILE_ERROR(CANT_WRITE_IN_BINARY);
     }
 
-    // for (size_t i = 0; i < sizeof(Header) + buffsize; ++i){
-    //     printf("%02x ", *((u_int8_t *)binary_code + i));
-    // }
-    // printf("\n");
-
-    // PrintHex(binary_code, sizeof(Header) + buffsize, stdout);
-
-    free(binary_code);
+    free(header_ptr);
 
     if (error_code != -1)
     {
