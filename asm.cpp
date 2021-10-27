@@ -18,6 +18,8 @@ void PrintHex(void *ptr, size_t size, FILE *stream)
     }
 }
 
+#define GetArgs(n_args){}
+
 int main(int argc, char *argv[])
 {
     Text text = {};
@@ -39,14 +41,13 @@ int main(int argc, char *argv[])
 
     if (stream == nullptr || listing == nullptr)
     {
-        printf("OOPS, FATAL ERROR\n");
+        printf("OOPS, FATAL ERROR(CANT OPEN BINARY OR LISTING)\n");
         return -1;
     }
 
     char *header_ptr = (char *) calloc(text.nlines * (sizeof(Elem_t) + sizeof(Command)) + sizeof(Header) + 1, sizeof(char));
 
     char *ptr = header_ptr;
-
     ptr += sizeof(Header);
 
     char *binary = ptr;
@@ -56,49 +57,52 @@ int main(int argc, char *argv[])
         char command[20];
         double num = NAN;
 
-        int count = sscanf(text.lines[i].ptr, "%s %lf", command, &num);
+        int count = sscanf(text.lines[i].ptr, "%s", command);
 
-        u_int32_t code = CommandCode(command);
+        if (count == 0)
+        {
+            COMPILE_ERROR(REWRITE_ASSEMBLER_CANT_READ_CMD);
+        }
 
-        if (code == 65535U)
+
+    #define GetArg()                                              \
+    {                                                              \
+        double arg = NAN;                                           \
+        count = sscanf(text.lines[i].ptr, "%s %lf", command, &arg);  \
+                                                                      \
+        if (count == 1)                                                \
+        {                                                               \
+            COMPILE_ERROR(THERE_IS_ONE_ARG_LOL);                         \
+        }                                                                 \
+                                                                           \
+        *(Elem_t *)ptr = arg;                                               \
+        ptr += sizeof(Elem_t);                                               \
+    }
+
+    #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code)                            \
+        if (strcmp(command, #cmd_name) == 0)                                                \
+        {                                                                                  \
+            *(Command *)ptr = cmd_num;                                                      \
+            ptr += sizeof(Command);                                                            \
+                                                                                                \
+            if (cmd_n_args == 1) GetArg();                                                                  \
+        }                                                                                   \
+        else
+
+    // вставить в дефайн листинг потом...
+
+    // if (cmd_n_args = 0)
+    //     fprintf(listing, "%04x %4s        %02x\n", ptr - binary, cmd_name, cmd_num);
+
+        #include "commands"
+        /* else */
         {
             COMPILE_ERROR(REWRITE_ASSEMBLER_UNKNOWN_COMMAND);
         }
 
-        if (count == 0)
-        {
-            COMPILE_ERROR(REWRITE_ASSEMBLER_CANT_READ);
-        }
-        else
-        if (count == 1)
-        {
-            *((Command *)ptr) = code;
+        #undef DEF_CMD
 
-            fprintf(listing, "%04x %4s        %02x\n", ptr - binary, command, code);
-
-            ptr += sizeof(Command);
-        }
-        else
-        if (count == 2)
-        {
-            fprintf(listing, "%04x %4s %06.2lf %02x %08x\n", ptr - binary, command, num, code, num);
-
-            *((Command *)ptr) = code;
-            
-            ptr += sizeof(Command);
-
-            *((Elem_t *)ptr)  = num;
-
-            ptr += sizeof(Elem_t);
-        }
-        else
-        {
-            COMPILE_ERROR(REWRITE_ASSEMBLER_EMPTY_LINE);
-            return 0;
-        }
-            
-
-        if (code == HLT)
+        if (strcmp(command, "HLT") == 0)
         {
             error_code = -1;
             if (i != text.nlines - 1)
@@ -109,7 +113,7 @@ int main(int argc, char *argv[])
 
     size_t buffsize     = ptr - binary;
 
-    Header header = {};
+    Header header       = {};
 
     header.signature    = signature;
     header.version      = version;

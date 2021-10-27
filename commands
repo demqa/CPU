@@ -1,0 +1,110 @@
+
+DEF_CMD(HLT, 0x00, 0,
+    {
+        StackDtor(&stack);
+        printf("end\n");
+        return 0;
+    }
+)
+
+
+DEF_CMD(PUSH, 0x01, 1,
+    {
+        Elem_t num = *(Elem_t *)ip;
+        ip += sizeof(Elem_t);
+
+        StackPush(&stack, num);
+    }
+)
+
+DEF_CMD(POP, 0x02, 0,
+    {
+        StackPop(&stack);
+    }
+)
+
+// DEF_CMD(POP, 0x22, 1,
+//     {
+
+//     }
+// )
+ 
+DEF_CMD(ADD, 0x03, 0,
+    {
+        double x = 0;
+        x += StackPop(&stack);
+        x += StackPop(&stack);
+
+        if (isnan(x))
+        {
+            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
+        }
+        
+        StackPush(&stack, x);
+    }
+)
+
+DEF_CMD(MUL, 0x04, 0,
+    {
+        double x = 1;
+        x *= StackPop(&stack);
+        x *= StackPop(&stack);
+
+        if (isnan(x))
+        {
+            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
+        }
+
+        StackPush(&stack, x);
+    }
+)
+
+DEF_CMD(SUB, 0x05, 0,
+    {
+        double x = 0;
+        x -= StackPop(&stack);
+        x += StackPop(&stack);
+
+        if (isnan(x))
+        {
+            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
+        }
+        
+        StackPush(&stack, x);
+    }
+)
+
+DEF_CMD(DIV, 0x06, 0,
+    {
+        double x = 1;
+        x /= StackPop(&stack);
+        x *= StackPop(&stack);
+
+        if (isnan(x))
+        {
+            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
+        }
+
+        StackPush(&stack, x);
+    }
+)
+
+DEF_CMD(OUT, 0x07, 0,
+    {
+        double x = StackTop(&stack);
+
+        if (isnan(x))
+        {
+            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_TOP_WHEN_EMPTY);
+        }
+
+        printf("top = %lf\n", x);
+    }
+)
+
+DEF_CMD(DUMP, 0x08, 0,
+    {
+        // TODO
+        printf("dump\n");
+    }
+)

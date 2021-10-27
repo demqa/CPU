@@ -28,4 +28,4 @@ make.o: make.cpp
 	$(CC) $(CFLAGS) make.cpp
 
 clean:
-	rm -rf *.o cpu asm
+	rm -rf *.o cpu asm my_make

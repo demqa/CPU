@@ -72,11 +72,6 @@ int main(int argc, char *argv[])
             perror("WRONG BUFFSIZE or smth, i dont really know how to call this error (file hasnt reached eof)");
         }
 
-        // for (size_t i = 0; i < sizeof(Header) + file_info.buffsize; ++i){
-        //     printf("%02x ", *((u_int8_t *)buffer + i));
-        // }
-        // printf("\n");
-
         fclose(stream);
     }
     else
@@ -97,106 +92,23 @@ int main(int argc, char *argv[])
         Command command = *(Command *)ip;
         ip += sizeof(Command);
 
-        if (command == PUSH)
+        switch (command)
         {
-            Elem_t num = *(Elem_t *)ip;
-            ip += sizeof(Elem_t);
+            #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code) \
+            {                                                         \
+                case CMD_ ## cmd_name:                                 \
+                    cmd_code                                            \
+                    break;                                               \
+            }
 
-            StackPush(&stack, num);
+            #include "commands"
+            
+            #undef DEF_CMD
+
+            default:
+                PROCESSING_ERROR(UNKNOWN_CMD);
         }
-        else
-        {
-            if (command == POP)
-            {
-                StackPop(&stack);
-            }
-            else
-            if (command == ADD)
-            {
-                double x = 0;
-                x += StackPop(&stack);
-                x += StackPop(&stack);
-
-                if (isnan(x))
-                {
-                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-                }
-                
-                StackPush(&stack, x);
-            }
-            else
-            if (command == MUL)
-            {
-                double x = 1;
-                x *= StackPop(&stack);
-                x *= StackPop(&stack);
-
-                if (isnan(x))
-                {
-                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-                }
-
-                StackPush(&stack, x);
-            }
-            else
-            if (command == SUB)
-            {
-                double x = 0;
-                x -= StackPop(&stack);
-                x += StackPop(&stack);
-
-                if (isnan(x))
-                {
-                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-                }
-                
-                StackPush(&stack, x);
-            }
-            else
-            if (command == DIV)
-            {
-                double x = 1;
-                x /= StackPop(&stack);
-                x *= StackPop(&stack);
-
-                if (isnan(x))
-                {
-                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-                }
-
-                StackPush(&stack, x);
-            }
-            else
-            if (command == OUT)
-            {
-                double x = StackTop(&stack);
-
-                if (isnan(x))
-                {
-                    PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_TOP_WHEN_EMPTY);
-                }
-
-                printf("top = %lf\n", x);
-                
-            }
-            else
-            if (command == HLT)
-            {
-                StackDtor(&stack);
-                printf("end\n");
-                return 0;
-            }
-            else
-            if (command == DUMP)
-            {
-                // TODO
-                printf("dump\n");
-            }
-            else
-            {
-                PROCESSING_ERROR(UNKNOWN_COMMAND);
-            }
-        }
+        
     }
 
     perror("WRONG_ASSEMBLER_CODE, NO HLT");
