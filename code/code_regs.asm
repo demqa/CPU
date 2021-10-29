@@ -1,0 +1,8 @@
+PUSH 15
+POP ax
+PUSH ax
+PUSH ax
+MUL
+OUT
+POP ax
+HLT

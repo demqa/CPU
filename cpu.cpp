@@ -3,6 +3,8 @@
 #include "stack/stack.h"
 #include "stack/print_func.cpp"
 
+#include "debug_lib.h"
+
 #define PROCESSING_ERROR(msg){                                                                          \
     printf("instruction #%d [%s:%d] message = %s\n", instruction, __PRETTY_FUNCTION__, __LINE__, #msg);  \
     StackDtor(&stack);                                                                                    \
@@ -40,6 +42,7 @@ int main(int argc, char *argv[])
         {
             perror("THIS BINARY HAS AN ERROR. TOO SHORT TO BE MY FILE");
             fclose(stream);
+            free(ptr);
             return 0;
         }
 
@@ -87,18 +90,32 @@ int main(int argc, char *argv[])
     char *ip = nullptr;
     int instruction = 1;
 
+    Elem_t regs[5] = {};
+    Elem_t *RAM = (Elem_t *) calloc(RamSize, sizeof(Elem_t));
+    if (RAM == nullptr)
+    {
+        StackDtor(&stack);
+        perror("NO RAM IN PROGRAM");
+        return -1;
+    }
+
     for (ip = buffer; ip < buffer + file_info.buffsize; ++instruction)
     {
         Command command = *(Command *)ip;
         ip += sizeof(Command);
 
-        switch (command)
+        // PRINT_LINE;
+        // PRINT(command);
+        // printf("%x\n", command);
+        // printf("%x\n", command & ~(IMM | REG | OSU));
+
+        switch (command & ~(IMM | REG | OSU))
         {
             #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code) \
             {                                                         \
                 case CMD_ ## cmd_name:                                 \
                     cmd_code                                            \
-                    break;                                               \
+                    break;                                                  \
             }
 
             #include "commands"

@@ -1,3 +1,12 @@
+// MY DSL
+
+#define POP() StackPop(&stack)
+#define PUSH(arg) StackPush(&stack, (arg))
+#define CmdIs(arg) ((command & (arg)) == (arg))
+
+#define ASSIGN_AND_GO_NEXT(name, type)   \
+    type name = *(type *)ip;              \
+    ip += sizeof(type);
 
 DEF_CMD(HLT, 0x00, 0,
     {
@@ -7,91 +16,141 @@ DEF_CMD(HLT, 0x00, 0,
     }
 )
 
-
 DEF_CMD(PUSH, 0x01, 1,
     {
-        Elem_t num = *(Elem_t *)ip;
-        ip += sizeof(Elem_t);
+        // printf("what the hell0\n");
 
-        StackPush(&stack, num);
+        if (CmdIs(OSU | REG | IMM))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+            ASSIGN_AND_GO_NEXT(index,   size_t);
+            // printf("what the hell2\n");
+
+            PUSH(RAM[(size_t)regs[reg_num] + index]);
+        }
+        else
+        if (CmdIs(REG | OSU))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+            // printf("what the hell3\n");
+
+            PUSH(RAM[(size_t)regs[reg_num]]);
+        }
+        else
+        if (CmdIs(OSU))
+        {
+            ASSIGN_AND_GO_NEXT(index, size_t);
+            // printf("what the hell4\n");
+
+            PUSH(RAM[index]);
+        }
+        else
+        if (CmdIs(REG))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+            // printf("what the hell5\n");
+
+            PUSH(regs[reg_num]);
+        }
+        else
+        if (CmdIs(IMM))
+        {
+            ASSIGN_AND_GO_NEXT(num, Elem_t);
+            // printf("what the hell6\n");
+
+            PUSH(num);
+        }
+        else
+        {
+            perror("HOW DOES IT FEEL TO GO WHERE IS NO ALLOWED");
+            StackDump(&stack);
+        }
     }
 )
 
-DEF_CMD(POP, 0x02, 0,
+DEF_CMD(POP, 0x02, 1,
     {
-        StackPop(&stack);
+        if (CmdIs(OSU | REG | IMM))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+            ASSIGN_AND_GO_NEXT(index,   size_t);
+
+            RAM[(size_t)regs[reg_num] + index] = POP();
+        }
+        else
+        if (CmdIs(REG | OSU))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+
+            RAM[(size_t)regs[reg_num]] = POP();
+        }
+        else
+        if (CmdIs(OSU))
+        {
+            ASSIGN_AND_GO_NEXT(index, size_t);
+
+            RAM[index] = POP();
+        }
+        else
+        if (CmdIs(REG))
+        {
+            ASSIGN_AND_GO_NEXT(reg_num, RegNum);
+
+            regs[reg_num] = POP();
+        }
+        else
+        {
+            perror("HOW DOES IT FEEL TO GO WHERE IS NO ALLOWED");
+            StackDump(&stack);
+        }
     }
 )
-
-// DEF_CMD(POP, 0x22, 1,
-//     {
-
-//     }
-// )
  
 DEF_CMD(ADD, 0x03, 0,
     {
-        double x = 0;
-        x += StackPop(&stack);
-        x += StackPop(&stack);
-
-        if (isnan(x))
-        {
-            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-        }
-        
-        StackPush(&stack, x);
+        PUSH(POP()+POP());
     }
 )
 
 DEF_CMD(MUL, 0x04, 0,
     {
-        double x = 1;
-        x *= StackPop(&stack);
-        x *= StackPop(&stack);
-
-        if (isnan(x))
-        {
-            PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
-        }
-
-        StackPush(&stack, x);
+        PUSH(POP() * POP());
     }
 )
 
 DEF_CMD(SUB, 0x05, 0,
     {
-        double x = 0;
-        x -= StackPop(&stack);
-        x += StackPop(&stack);
+        Elem_t x = 0;
+        x -= POP();
+        x += POP();
 
         if (isnan(x))
         {
             PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
         }
         
-        StackPush(&stack, x);
+        PUSH(x);
     }
 )
 
 DEF_CMD(DIV, 0x06, 0,
     {
-        double x = 1;
-        x /= StackPop(&stack);
-        x *= StackPop(&stack);
+        Elem_t x = 1;
+        x /= POP();
+        x *= POP();
 
         if (isnan(x))
         {
             PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
         }
 
-        StackPush(&stack, x);
+        PUSH(x);
     }
 )
 
 DEF_CMD(OUT, 0x07, 0,
     {
-        double x = StackTop(&stack);
+        Elem_t x = StackTop(&stack);
 
         if (isnan(x))
         {
@@ -108,3 +167,8 @@ DEF_CMD(DUMP, 0x08, 0,
         printf("dump\n");
     }
 )
+
+#undef POP
+#undef PUSH
+#undef CmdIs
+#undef ASSIGN_AND_GO_NEXT

@@ -18,7 +18,39 @@ void PrintHex(void *ptr, size_t size, FILE *stream)
     }
 }
 
-#define GetArgs(n_args){}
+RegNum RegNumber(char c)
+{
+    switch (c)
+    {
+        case 'a':
+            return 1;
+            break;
+        case 'b':
+            return 2;
+            break;
+        case 'c':
+            return 3;
+            break;
+        case 'd':
+            return 4;
+            break;
+        
+        default:
+            perror("You shouldn't be there");
+            break;
+    }
+}
+
+#define ADD_CMD_FLAGS(flags)                        \
+{                                                    \
+    *(Command *)(ptr - sizeof(Command)) |= (flags);   \
+}
+ 
+#define ASSIGN_CMD_ARG(arg, type)                    \
+{                                                     \
+    *(type *)ptr = (arg);                              \
+    ptr += sizeof(type);                                \
+}
 
 int main(int argc, char *argv[])
 {
@@ -54,8 +86,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < text.nlines; ++i)
     {
-        char command[20];
-        double num = NAN;
+        char command[20] = {};
 
         int count = sscanf(text.lines[i].ptr, "%s", command);
 
@@ -65,28 +96,72 @@ int main(int argc, char *argv[])
         }
 
 
-    #define GetArg()                                              \
-    {                                                              \
-        double arg = NAN;                                           \
-        count = sscanf(text.lines[i].ptr, "%s %lf", command, &arg);  \
-                                                                      \
-        if (count == 1)                                                \
-        {                                                               \
-            COMPILE_ERROR(THERE_IS_ONE_ARG_LOL);                         \
-        }                                                                 \
-                                                                           \
-        *(Elem_t *)ptr = arg;                                               \
-        ptr += sizeof(Elem_t);                                               \
+    #define GetArg()                                \
+    {                                                \
+        char reg_letter[20] = {};                     \
+        int  first          = 0;                       \
+        int  last           = 0;                        \
+        int  count          = 0;                         \
+        int  check          = 0;                          \
+        Elem_t x            = NAN;                         \
+        size_t index          = 0;                          \
+                                                                   \
+        if (sscanf(text.lines[i].ptr, "%s %lf", command, &x) == 2)  \
+        {                                                            \
+            ADD_CMD_FLAGS(IMM);                                 \
+                                                                 \
+            ASSIGN_CMD_ARG(x, Elem_t);                            \
+        }                                                          \
+        else                                                                                       \
+        if (sscanf(text.lines[i].ptr, "%s %n%1[abcd]x%n", command, &first, reg_letter, &last) == 2  \
+            && last - first == 2)                                                                    \
+        {                                                              \
+            ADD_CMD_FLAGS(REG);                                         \
+                                                                         \
+            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);               \
+        }                                                                  \
+        else                                                                    \
+        if (sscanf(text.lines[i].ptr, "%s [%lu]%n", command, &index, &check) == 2  \
+            && check != 0)                                                        \
+        {                                                                      \
+            ADD_CMD_FLAGS(OSU);                                                 \
+                                                                                 \
+            ASSIGN_CMD_ARG(index, size_t);                                          \
+        }                                                                          \
+        else                                                                                         \
+        if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x]%n", command, &first, reg_letter, &last) == 2  \
+            && last - first == 4)                                                                      \
+        {                                                                              \
+            ADD_CMD_FLAGS(REG | OSU);                                                   \
+                                                                                         \
+            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                               \
+        }                                                                                  \
+        else                                                                                                             \
+        if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x+%n%lu]%n", command, &first, reg_letter, &last, &index, &check) == 3  \
+            && last - first == 4 && check != 0)                                                                            \
+        {                                                                                      \
+            ADD_CMD_FLAGS(IMM | OSU | REG);                                                     \
+                                                                                                 \
+            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                                       \
+            ASSIGN_CMD_ARG(index, size_t);                                                           \
+        }                                                                                           \
+        else                                                                                         \
+        {                                                                                             \
+            COMPILE_ERROR(UNRECOGNISABLE_CMD_FORMAT_ASM);                                              \
+        }                                                                                               \
     }
-
+     
     #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code)                            \
-        if (strcmp(command, #cmd_name) == 0)                                                \
-        {                                                                                  \
-            *(Command *)ptr = cmd_num;                                                      \
-            ptr += sizeof(Command);                                                            \
-                                                                                                \
-            if (cmd_n_args == 1) GetArg();                                                                  \
-        }                                                                                   \
+        if (strcmp(command, #cmd_name) == 0)                                             \
+        {                                                                                 \
+            *(Command *)ptr = cmd_num;                                                     \
+            ptr += sizeof(Command);                                                         \
+                                                                                             \
+            if (cmd_n_args == 1)                                                              \
+            {                                                                                  \
+                GetArg();                                                                       \
+            }                                                                                    \
+        }                                                                                         \
         else
 
     // вставить в дефайн листинг потом...
@@ -139,3 +214,6 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+
+#undef ADD_CMD_FLAGS
+#undef ASSIGN_CMD_ARG
