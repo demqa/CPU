@@ -1,0 +1,9 @@
+PUSH 1
+1:
+POP ax
+PUSH 3
+PUSH ax
+MUL
+OUT
+JMP 1:
+HLT

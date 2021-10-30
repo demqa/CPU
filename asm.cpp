@@ -10,12 +10,12 @@
 
 void PrintHex(void *ptr, size_t size, FILE *stream)
 {
+    if (ptr == nullptr || stream == nullptr)
+        abort();
+
     char *mem = (char *) ptr;
-    if (mem != nullptr){
-        for (char *c = mem + size - 1; c >= mem; c--){
-            fprintf(stream, "%02x ", *((u_int8_t *)c));
-        }
-    }
+    for (char *c = mem + size - 1; c >= mem; c--)
+        fprintf(stream, "%02x ", *((u_int8_t *)c));
 }
 
 RegNum RegNumber(char c)
@@ -43,14 +43,20 @@ RegNum RegNumber(char c)
 
 #define ADD_CMD_FLAGS(flags)                        \
 {                                                    \
-    *(Command *)(ptr - sizeof(Command)) |= (flags);   \
+    *(Command *)(ip - sizeof(Command)) |= (flags);    \
 }
  
 #define ASSIGN_CMD_ARG(arg, type)                    \
 {                                                     \
-    *(type *)ptr = (arg);                              \
-    ptr += sizeof(type);                                \
+    *(type *)ip = (arg);                               \
+    ip += sizeof(type);                                 \
 }
+
+struct Label
+{
+    size_t label_n;
+    size_t index;
+};
 
 int main(int argc, char *argv[])
 {
@@ -77,13 +83,19 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    char *header_ptr = (char *) calloc(text.nlines * (sizeof(Elem_t) + sizeof(Command)) + sizeof(Header) + 1, sizeof(char));
+    char *header_ptr = (char *) calloc(text.nlines * (sizeof(Elem_t) + sizeof(Command) + sizeof(u_int64_t)) + sizeof(Header) + 1, sizeof(char));
+    
+    size_t labels_capacity = 10;
+    Label *labels = (Label *) calloc(labels_capacity, sizeof(Label));
 
-    char *ptr = header_ptr;
-    ptr += sizeof(Header);
+    char *binary = header_ptr;
+    binary += sizeof(Header);
 
-    char *binary = ptr;
+    char *ip = nullptr;
 
+for (int j = 0; j < 2; j++)
+{   
+    ip = binary;
     for (int i = 0; i < text.nlines; ++i)
     {
         char command[20] = {};
@@ -95,98 +107,145 @@ int main(int argc, char *argv[])
             COMPILE_ERROR(REWRITE_ASSEMBLER_CANT_READ_CMD);
         }
 
+        int check = 0;
 
-    #define GetArg()                                \
-    {                                                \
-        char reg_letter[20] = {};                     \
-        int  first          = 0;                       \
-        int  last           = 0;                        \
-        int  count          = 0;                         \
-        int  check          = 0;                          \
-        Elem_t x            = NAN;                         \
-        size_t index          = 0;                          \
-                                                                   \
-        if (sscanf(text.lines[i].ptr, "%s %lf", command, &x) == 2)  \
-        {                                                            \
-            ADD_CMD_FLAGS(IMM);                                 \
-                                                                 \
-            ASSIGN_CMD_ARG(x, Elem_t);                            \
-        }                                                          \
-        else                                                                                       \
-        if (sscanf(text.lines[i].ptr, "%s %n%1[abcd]x%n", command, &first, reg_letter, &last) == 2  \
-            && last - first == 2)                                                                    \
-        {                                                              \
-            ADD_CMD_FLAGS(REG);                                         \
-                                                                         \
-            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);               \
-        }                                                                  \
-        else                                                                    \
-        if (sscanf(text.lines[i].ptr, "%s [%lu]%n", command, &index, &check) == 2  \
-            && check != 0)                                                        \
-        {                                                                      \
-            ADD_CMD_FLAGS(OSU);                                                 \
-                                                                                 \
-            ASSIGN_CMD_ARG(index, size_t);                                          \
-        }                                                                          \
-        else                                                                                         \
-        if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x]%n", command, &first, reg_letter, &last) == 2  \
-            && last - first == 4)                                                                      \
-        {                                                                              \
-            ADD_CMD_FLAGS(REG | OSU);                                                   \
-                                                                                         \
-            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                               \
-        }                                                                                  \
-        else                                                                                                             \
-        if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x+%n%lu]%n", command, &first, reg_letter, &last, &index, &check) == 3  \
-            && last - first == 4 && check != 0)                                                                            \
-        {                                                                                      \
-            ADD_CMD_FLAGS(IMM | OSU | REG);                                                     \
-                                                                                                 \
-            ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                                       \
-            ASSIGN_CMD_ARG(index, size_t);                                                           \
-        }                                                                                           \
-        else                                                                                         \
-        {                                                                                             \
-            COMPILE_ERROR(UNRECOGNISABLE_CMD_FORMAT_ASM);                                              \
-        }                                                                                               \
-    }
-     
-    #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code)                            \
-        if (strcmp(command, #cmd_name) == 0)                                             \
-        {                                                                                 \
-            *(Command *)ptr = cmd_num;                                                     \
-            ptr += sizeof(Command);                                                         \
+        // char label[20] = {};
+        // count = sscanf(text.lines[i].ptr, "%[A-Z]:%n", label, &check);
+
+        size_t label_n = 0;
+        size_t index_n = 0;
+        count = sscanf(text.lines[i].ptr, "%lu:%n", &label_n, &check);
+        if (count == 1 && check != 0)
+        {
+            if (label_n >= labels_capacity)
+            {
+                COMPILE_ERROR(I_CANT_READ_THIS_LABEL);
+            }
+
+            size_t index = ip - binary;
+            
+            if (labels[label_n].index != 0 && labels[label_n].index != index)
+            {
+                COMPILE_ERROR(REPEATING_LABEL);
+            }
+
+            Label label = {};
+
+            label.label_n   = label_n;
+            label.index     = index;
+
+            labels[label_n] = label;
+
+            continue;
+        }
+
+        #define DEF_JMP(jmp_name, jmp_num, jmp_sign)                                   \
+            if (strcmp(command, #jmp_name) == 0)                                        \
+            {                                                                            \
+                ASSIGN_CMD_ARG(jmp_num, Command);                                         \
+                                                                                           \
+                if (sscanf(text.lines[i].ptr, "%s %lu:%n", command, &label_n, &check) == 2  \
+                    && check != 0)                                                           \
+                {                                                                             \
+                    ASSIGN_CMD_ARG(labels[label_n].index, size_t);                             \
+                }                                                                               \
+                else                                                                             \
+                if (sscanf(text.lines[i].ptr, "%s %lu%n", command, &index_n, &check) == 2         \
+                    && check != 0)                                                                 \
+                {                                                                                   \
+                    ASSIGN_CMD_ARG(index_n, size_t);                                                 \
+                }                                                                                     \
+            }                                                                                          \
+            else                                              
+
+        #define GetArg()                                \
+        {                                                \
+            char reg_letter[20] = {};                     \
+            int  first          = 0;                       \
+            int  last           = 0;                        \
+            int  count          = 0;                         \
+            int  check          = 0;                          \
+            Elem_t x            = NAN;                         \
+            size_t index        = 0;                            \
+                                                                       \
+            if (sscanf(text.lines[i].ptr, "%s %lf", command, &x) == 2)  \
+            {                                                            \
+                ADD_CMD_FLAGS(IMM);                                 \
+                                                                     \
+                ASSIGN_CMD_ARG(x, Elem_t);                            \
+            }                                                          \
+            else                                                                                       \
+            if (sscanf(text.lines[i].ptr, "%s %n%1[abcd]x%n", command, &first, reg_letter, &last) == 2  \
+                && last - first == 2)                                                                    \
+            {                                                              \
+                ADD_CMD_FLAGS(REG);                                         \
+                                                                             \
+                ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);               \
+            }                                                                  \
+            else                                                                      \
+            if (sscanf(text.lines[i].ptr, "%s [%lu]%n", command, &index, &check) == 2  \
+                && check != 0)                                                          \
+            {                                                                      \
+                ADD_CMD_FLAGS(OSU);                                                 \
+                                                                                     \
+                ASSIGN_CMD_ARG(index, size_t);                                        \
+            }                                                                          \
+            else                                                                                         \
+            if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x]%n", command, &first, reg_letter, &last) == 2  \
+                && last - first == 4)                                                                      \
+            {                                                                              \
+                ADD_CMD_FLAGS(REG | OSU);                                                   \
                                                                                              \
-            if (cmd_n_args == 1)                                                              \
-            {                                                                                  \
-                GetArg();                                                                       \
-            }                                                                                    \
-        }                                                                                         \
-        else
+                ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                               \
+            }                                                                                  \
+            else                                                                                                               \
+            if (sscanf(text.lines[i].ptr, "%s %n[%1[abcd]x+%n%lu]%n", command, &first, reg_letter, &last, &index, &check) == 3  \
+                && last - first == 4 && check != 0)                                                                              \
+            {                                                                                      \
+                ADD_CMD_FLAGS(IMM | OSU | REG);                                                     \
+                                                                                                     \
+                ASSIGN_CMD_ARG(RegNumber(*reg_letter), RegNum);                                       \
+                ASSIGN_CMD_ARG(index, size_t);                                                         \
+            }                                                                                           \
+            else                                                                                         \
+            {                                                                                             \
+                COMPILE_ERROR(UNRECOGNISABLE_CMD_FORMAT_ASM);                                              \
+            }                                                                                               \
+        }
+        
+        #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code)   \
+            if (strcmp(command, #cmd_name) == 0)                    \
+            {                                                        \
+                ASSIGN_CMD_ARG(cmd_num, Command);                     \
+                                                                       \
+                if (cmd_n_args == 1)                                    \
+                {                                                        \
+                    GetArg();                                             \
+                }                                                          \
+            }                                                               \
+            else
 
-    // вставить в дефайн листинг потом...
-
-    // if (cmd_n_args = 0)
-    //     fprintf(listing, "%04x %4s        %02x\n", ptr - binary, cmd_name, cmd_num);
 
         #include "commands"
         /* else */
         {
-            COMPILE_ERROR(REWRITE_ASSEMBLER_UNKNOWN_COMMAND);
+            COMPILE_ERROR(ASM_UNKNOWN_COMMAND);
         }
 
         #undef DEF_CMD
+        #undef DEF_JMP
 
         if (strcmp(command, "HLT") == 0)
         {
             error_code = -1;
-            if (i != text.nlines - 1)
-                COMPILE_ERROR(REWRITE_ASSEMBLER_THERE_IS_SOMETHING_AFTER_HLT);
-            break;
         }
     }
+}
 
-    size_t buffsize     = ptr - binary;
+    // check if for all i < labels_capacity
+    // labels[i] exists then labels[i].index != 0
+
+    size_t buffsize     = ip - binary;
 
     Header header       = {};
 
@@ -203,6 +262,7 @@ int main(int argc, char *argv[])
     }
 
     free(header_ptr);
+    free(labels);
 
     if (error_code != -1)
     {

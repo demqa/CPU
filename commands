@@ -2,15 +2,13 @@
 
 #define POP() StackPop(&stack)
 #define PUSH(arg) StackPush(&stack, (arg))
-#define CmdIs(arg) ((command & (arg)) == (arg))
-
-#define ASSIGN_AND_GO_NEXT(name, type)   \
-    type name = *(type *)ip;              \
-    ip += sizeof(type);
+#define CMD_FLAGS_ARE(arg) ((command & (arg)) == (arg))
 
 DEF_CMD(HLT, 0x00, 0,
     {
         StackDtor(&stack);
+        free(ptr);
+        free(buffer);
         printf("end\n");
         return 0;
     }
@@ -18,45 +16,38 @@ DEF_CMD(HLT, 0x00, 0,
 
 DEF_CMD(PUSH, 0x01, 1,
     {
-        // printf("what the hell0\n");
-
-        if (CmdIs(OSU | REG | IMM))
+        if (CMD_FLAGS_ARE(OSU | REG | IMM))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
             ASSIGN_AND_GO_NEXT(index,   size_t);
-            // printf("what the hell2\n");
 
             PUSH(RAM[(size_t)regs[reg_num] + index]);
         }
         else
-        if (CmdIs(REG | OSU))
+        if (CMD_FLAGS_ARE(REG | OSU))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
-            // printf("what the hell3\n");
 
             PUSH(RAM[(size_t)regs[reg_num]]);
         }
         else
-        if (CmdIs(OSU))
+        if (CMD_FLAGS_ARE(OSU))
         {
             ASSIGN_AND_GO_NEXT(index, size_t);
-            // printf("what the hell4\n");
 
             PUSH(RAM[index]);
         }
         else
-        if (CmdIs(REG))
+        if (CMD_FLAGS_ARE(REG))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
-            // printf("what the hell5\n");
 
             PUSH(regs[reg_num]);
         }
         else
-        if (CmdIs(IMM))
+        if (CMD_FLAGS_ARE(IMM))
         {
             ASSIGN_AND_GO_NEXT(num, Elem_t);
-            // printf("what the hell6\n");
 
             PUSH(num);
         }
@@ -70,7 +61,7 @@ DEF_CMD(PUSH, 0x01, 1,
 
 DEF_CMD(POP, 0x02, 1,
     {
-        if (CmdIs(OSU | REG | IMM))
+        if (CMD_FLAGS_ARE(OSU | REG | IMM))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
             ASSIGN_AND_GO_NEXT(index,   size_t);
@@ -78,21 +69,21 @@ DEF_CMD(POP, 0x02, 1,
             RAM[(size_t)regs[reg_num] + index] = POP();
         }
         else
-        if (CmdIs(REG | OSU))
+        if (CMD_FLAGS_ARE(REG | OSU))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
             RAM[(size_t)regs[reg_num]] = POP();
         }
         else
-        if (CmdIs(OSU))
+        if (CMD_FLAGS_ARE(OSU))
         {
             ASSIGN_AND_GO_NEXT(index, size_t);
 
             RAM[index] = POP();
         }
         else
-        if (CmdIs(REG))
+        if (CMD_FLAGS_ARE(REG))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
@@ -158,6 +149,7 @@ DEF_CMD(OUT, 0x07, 0,
         }
 
         printf("top = %lf\n", x);
+        sleep(1);
     }
 )
 
@@ -168,7 +160,20 @@ DEF_CMD(DUMP, 0x08, 0,
     }
 )
 
+DEF_CMD(MEOW, 0x1F, 0,
+    {
+        printf("meow :3\n");
+    }
+)
+
+DEF_JMP(JMP, 0x10, || 1 ||)
+DEF_JMP(JA,  0x11, >)
+DEF_JMP(JAE, 0x12, >=)
+DEF_JMP(JE,  0x13, ==)
+DEF_JMP(JBE, 0x14, <)
+DEF_JMP(JB,  0x15, <=)
+DEF_JMP(JNE, 0x16, !=)
+
 #undef POP
 #undef PUSH
-#undef CmdIs
-#undef ASSIGN_AND_GO_NEXT
+#undef CMD_FLAGS_ARE

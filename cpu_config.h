@@ -7,7 +7,7 @@
 #include <math.h>
 
 u_int32_t signature = 'DSS';
-u_int32_t version   = 3;
+u_int32_t version   = 4;
 
 typedef double    Elem_t;
 typedef u_int64_t Command;
@@ -23,7 +23,7 @@ struct Header
 {
     u_int32_t signature;
     u_int32_t version;
-    size_t buffsize;
+    size_t    buffsize;
 };
 
 enum Commands
@@ -31,9 +31,13 @@ enum Commands
     #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code) \
         CMD_ ## cmd_name = (cmd_num),
 
+    #define DEF_JMP(jmp_name, jmp_num, jmp_sign)                 \
+        JMP_ ## jmp_name = (jmp_num),
+
     #include "commands"
 
     #undef DEF_CMD
+    #undef DEF_JMP
 
 };
 

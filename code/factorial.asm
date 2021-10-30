@@ -1,0 +1,22 @@
+PUSH 1
+PUSH 9
+JAE 2:
+PUSH 1
+POP ax
+1:
+POP bx
+PUSH bx
+PUSH ax
+MUL
+POP ax
+PUSH bx
+PUSH 1
+SUB
+JB 1:
+PUSH ax
+OUT
+HLT
+2:
+PUSH 1
+OUT
+HLT

@@ -11,9 +11,12 @@
     return 0;                                                                                              \
 }
 
+#define ASSIGN_AND_GO_NEXT(name, type)   \
+    type name = *(type *)ip;              \
+    ip += sizeof(type);
+
 int main(int argc, char *argv[])
 {
-
     Header file_info = {};
     char *ptr    = nullptr;
     char *buffer = nullptr;
@@ -104,28 +107,46 @@ int main(int argc, char *argv[])
         Command command = *(Command *)ip;
         ip += sizeof(Command);
 
-        // PRINT_LINE;
-        // PRINT(command);
-        // printf("%x\n", command);
-        // printf("%x\n", command & ~(IMM | REG | OSU));
-
         switch (command & ~(IMM | REG | OSU))
         {
             #define DEF_CMD(cmd_name, cmd_num, cmd_n_args, cmd_code) \
             {                                                         \
                 case CMD_ ## cmd_name:                                 \
                     cmd_code                                            \
+                    break;                                               \
+            }
+
+            #define DEF_JMP(jmp_name, jmp_num, jmp_sign)  \
+            {                                              \
+                case JMP_ ## jmp_name:                      \
+                    Elem_t x = POP();                        \
+                    Elem_t y = POP();                         \
+                    if (y jmp_sign x)                          \
+                    {                                           \
+                        ASSIGN_AND_GO_NEXT(index, size_t);       \
+                                                                  \
+                        ip = buffer + index;                       \
+                    }                                               \
+                    else                                             \
+                    {                                                 \
+                        ip += sizeof(size_t);                          \
+                    }                                                   \
+                                                                         \
+                    PUSH(y);                                              \
+                    PUSH(x);                                               \
                     break;                                                  \
             }
 
             #include "commands"
             
             #undef DEF_CMD
+            #undef DEF_JMP
+            #undef ASSIGN_AND_GO_NEXT
 
             default:
                 PROCESSING_ERROR(UNKNOWN_CMD);
         }
-        
+
     }
 
     perror("WRONG_ASSEMBLER_CODE, NO HLT");
