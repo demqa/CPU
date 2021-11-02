@@ -12,7 +12,10 @@
 void PrintHex(void *ptr, size_t size, FILE *stream)
 {
     if (ptr == nullptr || stream == nullptr)
-        abort();
+    {
+        perror("PrintHex ptr is null or stream is null");
+        return;
+    }
 
     char *mem = (char *) ptr;
     for (char *c = mem + size - 1; c >= mem; c--)
@@ -273,6 +276,11 @@ for (int i_ = 0; i_ < 2; ++i_)
         }
     }
 }
+
+    for (size_t i = 0; i < labels_capacity; ++i)
+    {
+        printf("labels[i] = %s\n", labels[i].name);
+    }
 
     for (size_t i = 0; i < labels_capacity; ++i)
     {
