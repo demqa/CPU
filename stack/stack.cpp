@@ -136,6 +136,7 @@ stack_t *StackCtor_(stack_t *stack, size_t capacity, int line_created, const cha
 }
 
 Elem_t *StackResize(stack_t *stack, ResizeMode mode){
+    
     ASSERT_OK(stack);
 
     size_t new_capacity = 0;
@@ -251,7 +252,6 @@ Elem_t StackPop(stack_t *stack){
         stack->hash_stack = CalculateHashStack(stack);
     #endif
 
-        // StackDump(stack);
         return POISONED_ELEM;
     }
     
@@ -631,8 +631,8 @@ StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE]
     printf("\n");
 
     printf("    {\n");
-    printf("    size = %d\n",     (int)stack->size);
-    printf("    capacity = %d\n", (int)stack->capacity);
+    printf("    size = %lu\n",     stack->size);
+    printf("    capacity = %lu\n", stack->capacity);
 #if DEBUG_MODE & HASH_GUARD
     printf("    hash_stack = "); PrintHex((void *)&stack->hash_stack, sizeof(u_int64_t), stdout);
     printf("    hash_data  = "); PrintHex((void *)&stack->hash_data,  sizeof(u_int64_t), stdout);
@@ -642,8 +642,8 @@ StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE]
     if (!stack_has_errors){
         printf("        {\n");
         int number_of_characters = NumberOfCharacters((int)stack->capacity - 1);
-        for (size_t i = 0; i < stack->capacity; i++){
-            printf("         data[%*d] = ", number_of_characters, i);
+        for (size_t i = 0; i < stack->capacity; ++i){
+            printf("         data[%*lu] = ", number_of_characters, i);
             if (stack->PrintElem != nullptr)
                 stack->PrintElem((void *)(&stack->data[i]), sizeof(Elem_t), stdout);
             else

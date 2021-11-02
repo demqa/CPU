@@ -12,7 +12,10 @@
 void PrintHex(void *ptr, size_t size, FILE *stream)
 {
     if (ptr == nullptr || stream == nullptr)
-        abort();
+    {
+        perror("PrintHex ptr is null or stream is null");
+        return;
+    }
 
     char *mem = (char *) ptr;
     for (char *c = mem + size - 1; c >= mem; c--)
@@ -137,7 +140,7 @@ for (int i_ = 0; i_ < 2; ++i_)
                 COMPILE_ERROR(TOO_MUCH_LABELS);
             }
 
-            size_t index = ip - binary;
+            size_t index = ip - binary + sizeof(Command);
             
             for (size_t j = 0; j < label_n; ++j)
             {
@@ -154,9 +157,11 @@ for (int i_ = 0; i_ < 2; ++i_)
             lbl.index = index;
             memcpy(lbl.name, label, 20);
 
-            // printf("label_n = %d, lbl.name = %s\n", label_n, lbl.name);
-
-            labels[label_n++] = lbl;
+            size_t label_number = FindLabel(label, labels);
+            if (label_number == labels_capacity)
+                labels[label_n++]    = lbl;
+            else
+                labels[label_number] = lbl;
 
             continue;
         }
@@ -178,6 +183,7 @@ for (int i_ = 0; i_ < 2; ++i_)
                     else                                                                        \
                     {                                                                            \
                         ASSIGN_CMD_ARG(labels[label_number].index, size_t);                       \
+                        PRINT(labels[label_number]);          \
                     }                                                                              \
                 }                                                                                   \
                 else                                                                                 \
@@ -273,6 +279,11 @@ for (int i_ = 0; i_ < 2; ++i_)
         }
     }
 }
+
+    for (size_t i = 0; i < labels_capacity; ++i)
+    {
+        printf("labels[i] = %s\n", labels[i].name);
+    }
 
     for (size_t i = 0; i < labels_capacity; ++i)
     {

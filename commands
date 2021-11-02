@@ -1,14 +1,14 @@
 // MY DSL
 
-#define POP StackPop(&stack)
-#define PUSH(arg) StackPush(&stack, (arg))
+#define POP       StackPop(&cpu.stack)
+#define PUSH(arg) StackPush(&cpu.stack, (arg))
 #define CMD_FLAGS_ARE(arg) ((command & (arg)) == (arg))
 
 DEF_CMD(HLT, 0x00, 0,
     {
-        StackDtor(&stack);
-        free(ptr);
-        free(buffer);
+        StackDtor(&cpu.stack);
+        free(header);
+        free(cpu.code);
         printf("end\n");
         return 0;
     }
@@ -22,7 +22,7 @@ DEF_CMD(PUSH, 0x01, 1,
             ASSIGN_AND_GO_NEXT(index,   size_t);
 
             sleep(500);
-            PUSH(RAM[(size_t)regs[reg_num] + index]);
+            PUSH(cpu.RAM[(size_t)cpu.regs[reg_num] + index]);
         }
         else
         if (CMD_FLAGS_ARE(REG | OSU))
@@ -30,7 +30,7 @@ DEF_CMD(PUSH, 0x01, 1,
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
             sleep(500);
-            PUSH(RAM[(size_t)regs[reg_num]]);
+            PUSH(cpu.RAM[(size_t)cpu.regs[reg_num]]);
         }
         else
         if (CMD_FLAGS_ARE(OSU))
@@ -38,14 +38,14 @@ DEF_CMD(PUSH, 0x01, 1,
             ASSIGN_AND_GO_NEXT(index, size_t);
 
             sleep(500);
-            PUSH(RAM[index]);
+            PUSH(cpu.RAM[index]);
         }
         else
         if (CMD_FLAGS_ARE(REG))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
-            PUSH(regs[reg_num]);
+            PUSH(cpu.regs[reg_num]);
         }
         else
         if (CMD_FLAGS_ARE(IMM))
@@ -56,8 +56,8 @@ DEF_CMD(PUSH, 0x01, 1,
         }
         else
         {
-            perror("HOW DOES IT FEEL TO GO WHERE IS NO ALLOWED");
-            StackDump(&stack);
+            perror("HOW DOES IT FEEL TO GO WHERE IS NOT ALLOWED");
+            StackDump(&cpu.stack);
             abort();
         }
     }
@@ -71,7 +71,7 @@ DEF_CMD(POP, 0x02, 1,
             ASSIGN_AND_GO_NEXT(index,   size_t);
 
             sleep(500);
-            RAM[(size_t)regs[reg_num] + index] = POP;
+            cpu.RAM[(size_t)cpu.regs[reg_num] + index] = POP;
         }
         else
         if (CMD_FLAGS_ARE(REG | OSU))
@@ -79,7 +79,7 @@ DEF_CMD(POP, 0x02, 1,
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
             sleep(500);
-            RAM[(size_t)regs[reg_num]] = POP;
+            cpu.RAM[(size_t)cpu.regs[reg_num]] = POP;
         }
         else
         if (CMD_FLAGS_ARE(OSU))
@@ -87,19 +87,19 @@ DEF_CMD(POP, 0x02, 1,
             ASSIGN_AND_GO_NEXT(index, size_t);
 
             sleep(500);
-            RAM[index] = POP;
+            cpu.RAM[index] = POP;
         }
         else
         if (CMD_FLAGS_ARE(REG))
         {
             ASSIGN_AND_GO_NEXT(reg_num, RegNum);
 
-            regs[reg_num] = POP;
+            cpu.regs[reg_num] = POP;
         }
         else
         {
-            perror("HOW DOES IT FEEL TO GO WHERE IS NO ALLOWED");
-            StackDump(&stack);
+            perror("HOW DOES IT FEEL TO GO WHERE IS NOT ALLOWED");
+            StackDump(&cpu.stack);
         }
     }
 )
@@ -118,45 +118,45 @@ DEF_CMD(MUL, 0x04, 0,
 
 DEF_CMD(SUB, 0x05, 0,
     {
-        Elem_t x = 0;
-        x -= POP;
-        x += POP;
+        Elem_t __X_DONT_RENAME__ = 0;
+        __X_DONT_RENAME__ -= POP;
+        __X_DONT_RENAME__ += POP;
 
-        if (isnan(x))
+        if (isnan(__X_DONT_RENAME__))
         {
             PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
         }
         
-        PUSH(x);
+        PUSH(__X_DONT_RENAME__);
     }
 )
 
 DEF_CMD(DIV, 0x06, 0,
     {
-        Elem_t x = 1;
-        x /= POP;
-        x *= POP;
+        Elem_t __X_DONT_RENAME__ = 1;
+        __X_DONT_RENAME__ /= POP;
+        __X_DONT_RENAME__ *= POP;
 
-        if (isnan(x))
+        if (isnan(__X_DONT_RENAME__))
         {
             PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_POPPING_WHEN_EMPTY);
         }
 
-        PUSH(x);
+        PUSH(__X_DONT_RENAME__);
     }
 )
 
 DEF_CMD(OUT, 0x07, 0,
     {
-        Elem_t x = StackTop(&stack);
+        Elem_t __X_DONT_RENAME__ = StackTop(&cpu.stack);
 
-        if (isnan(x))
+        if (isnan(__X_DONT_RENAME__))
         {
             PROCESSING_ERROR(WRONG_SEQ_OF_COMMANDS_STACK_TOP_WHEN_EMPTY);
         }
 
         sleep(666);
-        printf("top = %lf\n", x);
+        printf("top = %lf\n", __X_DONT_RENAME__);
     }
 )
 
@@ -175,31 +175,29 @@ DEF_CMD(MEOW, 0x1F, 0,
 
 DEF_CMD(IN, 0x1E, 0,
     {
-        Elem_t x = NAN;
-        scanf("%lf", &x);
+        Elem_t __X_DONT_RENAME__ = NAN;
+        scanf("%lf", &__X_DONT_RENAME__);
 
-        if (isnan(x))
+        if (isnan(__X_DONT_RENAME__))
         {
             PROCESSING_ERROR(IN_ERROR_ARG_IS_NAN);
         }
 
-        PUSH(x);
+        PUSH(__X_DONT_RENAME__);
     }
 )
 
-/*
 DEF_CMD(CALL, 0x17, 0,
 {
-    PUSH((size_t)(ip - binary) + 2 * sizeof(Command) + sizeof(size_t));
+    PUSH((size_t)(ip - cpu.code) + 2 * sizeof(Command) + sizeof(size_t));
 }
 )
 
 DEF_CMD(RET, 0x18, 0,
 {
-    ip = binary + (size_t)POP;
+    ip = cpu.code + (size_t)POP;
 }
 )
-*/
 
 DEF_JMP(JMP, 0x10, || 1 ||)
 DEF_JMP(JA,  0x11, >)
