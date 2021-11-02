@@ -1,7 +1,12 @@
-PUSH 1
+IN
+OUT
 POP ax
-PUSH 2
+IN
+OUT
 POP bx
-PUSH 3
+IN
+OUT
 POP cx
+PUSH ax
+OUT
 HLT

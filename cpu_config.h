@@ -7,7 +7,7 @@
 #include <math.h>
 
 u_int32_t signature = 'DSS';
-u_int32_t version   = 4;
+u_int32_t version   = 5;
 
 typedef double    Elem_t;
 typedef u_int64_t Command;

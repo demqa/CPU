@@ -138,11 +138,11 @@ StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE]
 #endif
 
 #ifdef DEBUG_MODE
-    #define ASSERT_OK(stack){                    \
-        if (StackVerify(stack) != STACK_IS_OK){   \
-            StackDump(stack);                      \
-            assert(!"ok" && "Bad stack");           \
-        }                                            \
+    #define ASSERT_OK(stack){                      \
+        if (StackVerify(stack) != STACK_IS_OK){     \
+            StackDump(stack);                        \
+            assert(!"ok" && "Bad stack");             \
+        }                                              \
     }
 #endif
 

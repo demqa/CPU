@@ -1,9 +1,9 @@
 PUSH 1
-1:
+123_:
 POP ax
 PUSH 3
 PUSH ax
 MUL
 OUT
-JMP 1:
+JMP 123_:
 HLT

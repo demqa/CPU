@@ -1,4 +1,6 @@
 #include <string.h>
+#include <time.h>
+
 #include "cpu_config.h"
 #include "stack/stack.h"
 #include "stack/print_func.cpp"
@@ -14,6 +16,12 @@
 #define ASSIGN_AND_GO_NEXT(name, type)   \
     type name = *(type *)ip;              \
     ip += sizeof(type);
+
+void sleep(int milliseconds)
+{
+    clock_t time_end = clock() + milliseconds * CLOCKS_PER_SEC / 1000;
+    while (clock() < time_end) ;
+}
 
 int main(int argc, char *argv[])
 {
@@ -119,8 +127,8 @@ int main(int argc, char *argv[])
             #define DEF_JMP(jmp_name, jmp_num, jmp_sign)  \
             {                                              \
                 case JMP_ ## jmp_name:                      \
-                    Elem_t x = POP();                        \
-                    Elem_t y = POP();                         \
+                    Elem_t x = POP;                          \
+                    Elem_t y = POP;                           \
                     if (y jmp_sign x)                          \
                     {                                           \
                         ASSIGN_AND_GO_NEXT(index, size_t);       \
@@ -146,7 +154,6 @@ int main(int argc, char *argv[])
             default:
                 PROCESSING_ERROR(UNKNOWN_CMD);
         }
-
     }
 
     perror("WRONG_ASSEMBLER_CODE, NO HLT");

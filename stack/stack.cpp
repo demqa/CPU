@@ -251,8 +251,7 @@ Elem_t StackPop(stack_t *stack){
         stack->hash_stack = CalculateHashStack(stack);
     #endif
 
-        StackDump(stack);
-        
+        // StackDump(stack);
         return POISONED_ELEM;
     }
     
