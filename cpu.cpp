@@ -7,10 +7,12 @@
 
 #include "debug_lib.h"
 
-#define PROCESSING_ERROR(msg){                                                                          \
-    printf("cur_cmd #%lu %lf [%s:%d] message = %s\n", cpu.cur_cmd, *(Elem_t *)ip, __PRETTY_FUNCTION__, __LINE__, #msg);  \
-    StackDtor(&cpu.stack);                                                                                    \
-    return 0;                                                                                              \
+#define PROCESSING_ERROR(msg)                                                                                           \
+{                                                                                                                        \
+    printf("cur_cmd #%lu %lf [%s:%d] message = %s\n", cpu->cur_cmd, *(Elem_t *)ip, __PRETTY_FUNCTION__, __LINE__, #msg);  \
+    StackDtor(&cpu->stack);                                                                                                \
+    StackDtor(&cpu->stack_adr);                                                                                             \
+    return -1;                                                                                                               \
 }
 
 #define ASSIGN_AND_GO_NEXT(name, type)   \
@@ -28,6 +30,8 @@ struct CPU
     stack_t stack;
     stack_t stack_adr;
 
+    Header file_info;
+
     char *code;
     size_t code_size;
 
@@ -37,93 +41,104 @@ struct CPU
     Elem_t *RAM;
 };
 
-
-int main(int argc, char *argv[])
+int DestructCPU(CPU *cpu)
 {
-    Header file_info = {};
-    char *header     = nullptr;
-    CPU cpu = {};
+    StackDtor(&cpu->stack);
+    StackDtor(&cpu->stack_adr);
+    free(cpu->code); cpu->code = nullptr;
+    free(cpu->RAM);  cpu->RAM  = nullptr;
+}
 
-    if (argc == 2)
+int ConstructCPU(CPU *cpu, const char *binary_name)
+{
+    FILE *stream = fopen(binary_name, "rb");
+    if (stream == nullptr)
     {
-        FILE *stream = fopen(argv[1], "rb");
-        if (stream == nullptr)
-        {
-            perror("FATAL ERROR, CANT OPEN FILE");
-            return 0;
-        }
-
-        header = (char *) calloc(sizeof(Header), sizeof(char));
-
-        size_t n_bytes = fread(header, sizeof(char), sizeof(Header), stream);
-        if (ferror(stream))
-        {
-            perror("THERE IS SOME ERROR IN FILE READING");
-        }
-        if (feof(stream))
-        {
-            perror("EOF REACHED");
-        }
-        if (n_bytes != sizeof(Header))
-        {
-            perror("THIS BINARY HAS AN ERROR. TOO SHORT TO BE MY FILE");
-            fclose(stream);
-            free(header);
-            return 0;
-        }
-
-        if (*((u_int32_t *)header) == signature)
-        {
-            file_info = *(Header *)header;
-        }
-        else
-        {
-            perror("THIS BINARY ISNT MINE\n");
-            fclose(stream);
-            return 0;
-        }
-
-        if (file_info.version != version)
-        {
-            perror("THIS BINARY IS OLDER THAN PROGRAM, RECOMPILE ASM\n");
-            fclose(stream);
-            return 0;
-        }
-
-
-        cpu.code_size = file_info.buffsize;
-        cpu.code = (char *) calloc(file_info.buffsize + 1, sizeof(char));
-                                                // because read want to do smth
-                                                // with End Of File
-                                                // I think
-
-        n_bytes = fread(cpu.code, sizeof(char), file_info.buffsize, stream);
-        if (n_bytes != file_info.buffsize)
-        {
-            perror("WRONG BUFFSIZE or smth, i dont really know how to call this error (file hasnt reached eof)");
-        }
-
-        fclose(stream);
-    }
-    else
-    {
-        perror("give me nice arguments, pls\n");
+        printf("FATAL ERROR, CANT OPEN FILE\n");
         return 0;
     }
 
-    StackCtor(&cpu.stack, 0, PrintDouble);
-
-    char *ip = nullptr;
-
-    cpu.RAM = (Elem_t *) calloc(RamSize, sizeof(Elem_t));
-    if (cpu.RAM == nullptr)
+    char *header = (char *) calloc(sizeof(Header), sizeof(char));
+    if (header == nullptr)
     {
-        StackDtor(&cpu.stack);
-        perror("NO RAM IN PROGRAM");
+        printf("bad alloc.. not enough memory i think...\n");
         return -1;
     }
 
-    for (ip = cpu.code; ip < cpu.code + file_info.buffsize; ++cpu.cur_cmd)
+    size_t n_bytes = fread(header, sizeof(char), sizeof(Header), stream);
+    if (ferror(stream))
+    {
+        perror("THERE IS SOME ERROR IN FILE READING");
+    }
+    if (feof(stream))
+    {
+        printf("EOF REACHED\n");
+    }
+    if (n_bytes != sizeof(Header))
+    {
+        printf("THIS BINARY HAS AN ERROR. TOO SHORT TO BE MY FILE\n");
+        fclose(stream);
+        free(header);
+        return -1;
+    }
+
+    if (*((u_int32_t *)header) == signature)
+    {
+        cpu->file_info = *(Header *)header;
+    }
+    else
+    {
+        printf("THIS BINARY ISNT MINE\n");
+        fclose(stream);
+        free(header);
+        return -1;
+    }
+
+    free(header);
+
+    if (cpu->file_info.version != version)
+    {
+        printf("THIS BINARY IS OLDER THAN PROGRAM, RECOMPILE ASM\n");
+        fclose(stream);
+        return -1;
+    }
+
+    cpu->code_size = cpu->file_info.buffsize;
+    cpu->code = (char *) calloc(cpu->file_info.buffsize + 1, sizeof(char));
+    if (cpu->code == nullptr)
+    {
+        printf("the 3rd way to achieve bad alloc. give me memory pls\n");
+        return -1;
+    }
+
+    n_bytes = fread(cpu->code, sizeof(char), cpu->file_info.buffsize, stream);
+    if (n_bytes != cpu->file_info.buffsize)
+    {
+        printf("WRONG BUFFSIZE or smth, i dont really know how to call this error (file hasnt reached eof)\n");
+        return -1;
+    }
+
+    fclose(stream);
+
+    StackCtor(&cpu->stack,     0, PrintDouble);
+    StackCtor(&cpu->stack_adr, 0, nullptr);
+
+    cpu->RAM = (Elem_t *) calloc(RamSize, sizeof(Elem_t));
+    if (cpu->RAM == nullptr)
+    {
+        DestructCPU(cpu);
+        printf("NO RAM IN PROGRAM\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int ProcessingCPU(CPU *cpu)
+{
+    char *ip = nullptr;
+
+    for (ip = cpu->code; ip < cpu->code + cpu->file_info.buffsize; ++cpu->cur_cmd)
     {
         ASSIGN_AND_GO_NEXT(command, Command);
 
@@ -137,32 +152,32 @@ int main(int argc, char *argv[])
                 break;                                               \
         }
 
-        #define DEF_JMP(jmp_name, jmp_num, jmp_sign) \
-        {                                             \
-            case JMP_ ## jmp_name:                     \
-                if (jmp_num == 0x10) /* case JMP */     \
-                {                                        \
-                    ASSIGN_AND_GO_NEXT(index, size_t);    \
-                    ip = cpu.code + index;                 \
-                    continue;                               \
-                }                                            \
-                                                              \
-                Elem_t x = POP;                                \
-                Elem_t y = POP;                                 \
-                if (y jmp_sign x)                                \
-                {                                                 \
-                    ASSIGN_AND_GO_NEXT(index, size_t);             \
-                                                                    \
-                    ip = cpu.code + index;                           \
-                }                                                     \
-                else                                                   \
-                {                                                       \
-                    ip += sizeof(size_t);                                \
-                }                                                         \
-                                                                           \
-                PUSH(y);                                                    \
-                PUSH(x);                                                     \
-                break;                                                        \
+        #define DEF_JMP(jmp_name, jmp_num, jmp_sign)  \
+        {                                              \
+            case JMP_ ## jmp_name:                      \
+                if (jmp_num == 0x10) /* case JMP */      \
+                {                                         \
+                    ASSIGN_AND_GO_NEXT(index, size_t);     \
+                    ip = cpu->code + index;                 \
+                    continue;                                \
+                }                                             \
+                                                               \
+                Elem_t x = POP;                                 \
+                Elem_t y = POP;                                  \
+                if (y jmp_sign x)                                 \
+                {                                                  \
+                    ASSIGN_AND_GO_NEXT(index, size_t);              \
+                                                                     \
+                    ip = cpu->code + index;                           \
+                }                                                      \
+                else                                                    \
+                {                                                        \
+                    ip += sizeof(size_t);                                 \
+                }                                                          \
+                                                                            \
+                PUSH(y);                                                     \
+                PUSH(x);                                                      \
+                break;                                                         \
         }
 
             #include "commands"
@@ -176,12 +191,31 @@ int main(int argc, char *argv[])
         }
     }
 
-    perror("WRONG_ASSEMBLER_CODE, NO HLT");
-    StackDtor(&cpu.stack);
+    DestructCPU(cpu);
+    printf("WRONG_ASSEMBLER_CODE, NO HLT\n");
+    
+    return -1;
+}
 
-    free(cpu.RAM);
-    free(header);
-    free(cpu.code);
+int main(int argc, char *argv[])
+{
+    CPU cpu = {};
+
+    fprintf(stderr, "argc = %d\n", argc);
+
+    if (argc == 2)
+    {
+        if (ConstructCPU(&cpu, argv[1]) == -1) return 0;
+    }
+    else
+    {
+        printf("give me nice arguments, pls\n");
+        return 0;
+    }
+
+    ProcessingCPU(&cpu);
+
+    DestructCPU(&cpu);
 
     return 0;
 }
