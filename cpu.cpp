@@ -10,14 +10,9 @@
 #define PROCESSING_ERROR(msg)                                                                                           \
 {                                                                                                                        \
     printf("cur_cmd #%lu %lf [%s:%d] message = %s\n", cpu->cur_cmd, *(Elem_t *)ip, __PRETTY_FUNCTION__, __LINE__, #msg);  \
-    StackDtor(&cpu->stack);                                                                                                \
-    StackDtor(&cpu->stack_adr);                                                                                             \
-    return -1;                                                                                                               \
+    DestructCPU(cpu);                                                                                                     \
+    return -1;                                                                                                              \
 }
-
-#define ASSIGN_AND_GO_NEXT(name, type)   \
-    type name = *(type *)ip;              \
-    ip += sizeof(type);
 
 void sleep(int milliseconds)
 {
@@ -28,7 +23,7 @@ void sleep(int milliseconds)
 struct CPU
 {
     stack_t stack;
-    stack_t stack_adr;
+    // stack_t stack_adr;
 
     Header file_info;
 
@@ -44,9 +39,11 @@ struct CPU
 int DestructCPU(CPU *cpu)
 {
     StackDtor(&cpu->stack);
-    StackDtor(&cpu->stack_adr);
+    // StackDtor(&cpu->stack_adr);
     free(cpu->code); cpu->code = nullptr;
     free(cpu->RAM);  cpu->RAM  = nullptr;
+
+    return 0;
 }
 
 int ConstructCPU(CPU *cpu, const char *binary_name)
@@ -121,7 +118,7 @@ int ConstructCPU(CPU *cpu, const char *binary_name)
     fclose(stream);
 
     StackCtor(&cpu->stack,     0, PrintDouble);
-    StackCtor(&cpu->stack_adr, 0, nullptr);
+    // StackCtor(&cpu->stack_adr, 0, nullptr);
 
     cpu->RAM = (Elem_t *) calloc(RamSize, sizeof(Elem_t));
     if (cpu->RAM == nullptr)
@@ -133,6 +130,10 @@ int ConstructCPU(CPU *cpu, const char *binary_name)
 
     return 0;
 }
+
+#define ASSIGN_AND_GO_NEXT(name, type)   \
+    type name = *(type *)ip;              \
+    ip += sizeof(type);
 
 int ProcessingCPU(CPU *cpu)
 {
@@ -155,36 +156,33 @@ int ProcessingCPU(CPU *cpu)
         #define DEF_JMP(jmp_name, jmp_num, jmp_sign)  \
         {                                              \
             case JMP_ ## jmp_name:                      \
-                if (jmp_num == 0x10) /* case JMP */      \
-                {                                         \
-                    ASSIGN_AND_GO_NEXT(index, size_t);     \
-                    ip = cpu->code + index;                 \
-                    continue;                                \
-                }                                             \
-                                                               \
-                Elem_t x = POP;                                 \
-                Elem_t y = POP;                                  \
-                if (y jmp_sign x)                                 \
-                {                                                  \
-                    ASSIGN_AND_GO_NEXT(index, size_t);              \
-                                                                     \
-                    ip = cpu->code + index;                           \
-                }                                                      \
-                else                                                    \
-                {                                                        \
-                    ip += sizeof(size_t);                                 \
-                }                                                          \
-                                                                            \
-                PUSH(y);                                                     \
-                PUSH(x);                                                      \
-                break;                                                         \
+                if (jmp_num == JMP_CALL)                              \
+                    PUSH((size_t)(ip - cpu->code) + sizeof(size_t));   \
+                if (jmp_num == JMP_JMP ||                               \
+                    jmp_num == JMP_CALL)                    \
+                {                                            \
+                    ASSIGN_AND_GO_NEXT(index, size_t);        \
+                    ip = cpu->code + index;                    \
+                    continue;                                   \
+                }                                                \
+                                                                  \
+                Elem_t x = POP;                                    \
+                Elem_t y = POP;                                     \
+                if (y jmp_sign x)                                    \
+                {                                                     \
+                    ASSIGN_AND_GO_NEXT(index, size_t);                 \
+                                                                        \
+                    ip = cpu->code + index;                              \
+                }                                                         \
+                else                                                       \
+                {                                                           \
+                    ip += sizeof(size_t);                                    \
+                }                                                             \
+                                                                               \
+                break;                                                          \
         }
 
             #include "commands"
-            
-            #undef DEF_CMD
-            #undef DEF_JMP
-            #undef ASSIGN_AND_GO_NEXT
 
             default:
                 PROCESSING_ERROR(UNKNOWN_CMD);
@@ -197,15 +195,16 @@ int ProcessingCPU(CPU *cpu)
     return -1;
 }
 
+#undef ASSIGN_AND_GO_NEXT
+
 int main(int argc, char *argv[])
 {
     CPU cpu = {};
 
-    fprintf(stderr, "argc = %d\n", argc);
-
     if (argc == 2)
     {
-        if (ConstructCPU(&cpu, argv[1]) == -1) return 0;
+        if (ConstructCPU(&cpu, argv[1]) == -1)
+            return 0;
     }
     else
     {

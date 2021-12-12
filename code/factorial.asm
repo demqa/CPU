@@ -1,22 +1,34 @@
-PUSH 1
-PUSH 9
-JAE 2:
-PUSH 1
+3:
+IN
+4:
+CALL FUCK:
+OUT
+5:
+POP dx
+HLT
+
+
+
+FUCK:
 POP ax
-1:
 POP bx
 PUSH bx
+PUSH 1
+JBE 1:
 PUSH ax
-MUL
-POP ax
+PUSH bx
 PUSH bx
 PUSH 1
 SUB
-JB 1:
+CALL FUCK:
+MUL
+POP cx
+POP ax
+PUSH cx
 PUSH ax
-OUT
-HLT
-2:
+RET
+
+1:
 PUSH 1
-OUT
-HLT
+PUSH ax
+RET

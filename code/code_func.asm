@@ -1,0 +1,16 @@
+IN
+IN
+CALL MULT:
+OUT
+HLT
+MULT:
+POP ax
+POP bx
+POP cx
+PUSH bx
+PUSH cx
+MUL
+OUT
+PUSH ax
+RET
+HLT

@@ -9,6 +9,32 @@
     return -1;                                                      \
 }
 
+#define ADD_CMD_FLAGS(flags)                      \
+{                                                  \
+    *(Command *)(*ip - sizeof(Command)) |= (flags); \
+}
+ 
+#define ASSIGN_CMD_ARG(arg, type, ptr)                 \
+{                                                       \
+    *(type *)(ptr ip) = (arg);                           \
+    (ptr ip) += sizeof(type);                             \
+}
+
+const size_t DEAD_INDEX = (size_t)(-1);
+
+struct Label
+{
+    size_t index;
+    char name[20];
+};
+
+struct Labels
+{
+    size_t size;
+    size_t capacity;
+    Label *labels;
+};
+
 void PrintHex(void *ptr, size_t size, FILE *stream)
 {
     if (ptr == nullptr || stream == nullptr)
@@ -45,30 +71,14 @@ RegNum RegNumber(char c)
     }
 }
 
-#define ADD_CMD_FLAGS(flags)                      \
-{                                                  \
-    *(Command *)(*ip - sizeof(Command)) |= (flags);  \
-}
- 
-#define ASSIGN_CMD_ARG(arg, type, ptr)                 \
-{                                                       \
-    *(type *)(ptr ip) = (arg);                           \
-    (ptr ip) += sizeof(type);                             \
-}
-
-struct Label
+size_t FindLabel(Labels *labels, char *label)
 {
-    size_t index;
-    char name[20];
-};
+    if (labels == nullptr || labels->labels == nullptr || label == nullptr)
+        return DEAD_INDEX;
 
-const size_t labels_capacity = 10;
-
-size_t FindLabel(char *label, Label *labels)
-{
     for (size_t i = 0; i < labels_capacity; ++i)
     {
-        if (strcmp(label, labels[i].name) == 0)
+        if (strcmp(label, labels->labels[i].name) == 0)
         {
             return i;
         }
@@ -76,8 +86,27 @@ size_t FindLabel(char *label, Label *labels)
     return labels_capacity;
 }
 
+int LabelIsInitialisedAgain(Labels *labels, char *label, size_t index)
+{
+    if (labels == nullptr || label == nullptr || labels->labels == nullptr)
+        return -1;
+
+    for (size_t j = 0; j < labels->size; ++j)
+    {
+        if (strcmp(labels->labels[j].name, label) == 0 &&
+            labels->labels[j].index != index           &&
+            labels->labels[j].index != DEAD_INDEX)
+        {
+            return -1;
+        }
+    }
+}
+
 int GetArg(char *asm_line, char **ip)
 {
+    if (ip == nullptr || asm_line == nullptr)
+        return -1;
+
     char reg_letter[20] = {};          
     int  first          = 0;            
     int  last           = 0;             
@@ -130,31 +159,116 @@ int GetArg(char *asm_line, char **ip)
     {
         return -1;
     }
+
+    return 0;
 }
 
-int GetLabel(char *asm_line, char **ip, Label **labels_ptr, size_t *label_n)
+int ConstructLabels(Labels *labels, size_t capacity)
 {
+    if (labels == nullptr)
+        return -1;
+
+    labels->labels = (Label *) calloc(capacity, sizeof(Label));
+    if (labels->labels == nullptr)
+        return -1;
+
+    for (size_t j_ = 0; j_ < capacity; ++j_)
+        labels->labels[j_].index = DEAD_INDEX;
+    
+    return 0;
+}
+
+void WriteLabelName(Labels *labels, char *label)
+{
+    if (labels == nullptr || label == nullptr || labels->labels == nullptr)
+        return;
+
+    memcpy(labels->labels[labels->size++].name, label, 20);
+
+    return;
+}
+
+int LabelsPush(Labels *labels, Label *label)
+{
+    if (labels == nullptr || label == nullptr || labels->labels == nullptr) return -1;
+
+    if (labels->size > labels->capacity) return -2;
+
+    if (label->name == nullptr) return -3;
+
+    WriteLabelName(labels, label->name);
+
+    return 0;
+}
+
+void DestructLabels(Labels *labels)
+{
+    if (labels == nullptr)
+        return;
+    
+    labels->size     = 0;
+    labels->capacity = 0;
+
+    free(labels->labels);
+    labels->labels = nullptr;
+}
+
+int LabelsVerify(Labels *labels)
+{
+    if (labels         == nullptr) return -1;
+    if (labels->labels == nullptr) return -1;
+
+    if (labels->size > labels->capacity) return -2;
+
+    for (size_t i = 0; i < labels->size; i++)
+    {
+        if (labels->labels[i].index == DEAD_INDEX)
+            return -3;
+    }
+
+    return 0;
+}
+
+int LabelsAreFull(Labels *labels)
+{
+    if (labels == nullptr)
+        return -1;
+    
+    if (labels->size == labels->capacity)
+        return -2;
+    
+    return 0;
+}
+
+int GetLabel(char *asm_line, char **ip, Labels *labels)
+{
+    if (asm_line == nullptr || ip == nullptr || *ip == nullptr || labels == nullptr)
+        return -1;
+
     char   command[20]  = {};
     char   label  [20]  = {};
     int    check        = 0;
     size_t index_n      = 0;
 
-    Label *labels = *labels_ptr;
+    char *ptr = *ip;
 
     if (sscanf(asm_line, "%s %[A-Za-z0-9_]:%n", command, label, &check) == 2
         && check != 0)
     {
-        size_t label_number = FindLabel(label, labels);   
+        size_t label_number = FindLabel(labels, label);
+        
         if (label_number == labels_capacity)
-        {      
-            if (*label_n == labels_capacity) return -2;
+        {
+            fprintf(stderr, "label %s not found\n", label);
+            if (LabelsAreFull(labels)) return -2;
 
-            memcpy(labels[(*label_n)++].name, label, 20);
-            *ip += sizeof(Command);
+            WriteLabelName(labels, label);
+            *ip += sizeof(size_t);
         }                                                                    
         else                            
-        {              
-            ASSIGN_CMD_ARG(labels[label_number].index, size_t, *);
+        {
+            fprintf(stderr, "label %s found\n", label);
+            ASSIGN_CMD_ARG(labels->labels[label_number].index, size_t, *);
         }       
     }          
     else      
@@ -167,10 +281,18 @@ int GetLabel(char *asm_line, char **ip, Label **labels_ptr, size_t *label_n)
     {
         return -1;
     }
+
+    fprintf(stderr, "ptr - *ip = %d\n", ptr - *ip);
+
+    return 0;
 }
 
 int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
 {
+    if (header_ptr == nullptr || *header_ptr == nullptr || 
+        asm_code   == nullptr ||  buffsize   == nullptr)
+        return -1;
+    
     FILE *listing = fopen("listing", "w");
     if (listing == nullptr)
     {
@@ -179,8 +301,13 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
     }
 
     size_t label_n = 0;
-    Label *labels = (Label *) calloc(labels_capacity, sizeof(Label));
-    for (size_t j_ = 0; j_ < labels_capacity; ++j_) labels[j_].index = (size_t)(-1);
+
+    Labels labels  = {};
+    if (ConstructLabels(&labels, labels_capacity))
+    {
+        printf("OOPS, FATAL ERROR(CANT ALLOC LABELS)");
+        return -1;
+    }
 
     char *binary = *header_ptr;
     binary += sizeof(Header);
@@ -188,17 +315,13 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
     char *ip = nullptr;
     int error_code = 0;
 
-    for (int i_ = 0; i_ < 2; ++i_)
-    {   
+    for (int i_ = 0; i_ < 3; ++i_) // rewrite code
+    {        // it should ^ be 2   so this is bullshit, labels dont work
         ip = binary;
         label_n = 0;
-        // printf("CYCLE\n");
 
         for (int i = 0; i < asm_code->nlines; ++i)
         {
-            // printf("begin:\n");
-            // printf("ip - binary = %lu\n", ip - binary);
-
             char command[20] = {};
 
             int count = sscanf(asm_code->lines[i].ptr, "%s", command);
@@ -215,37 +338,37 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
 
             if (count == 1 && check != 0)
             {
-                // printf("LABEL DETECTED: n_line = %d, line: %s\n", i, asm_code->lines[i].ptr);
-                // printf("LABEL: %s, label_n = %lu\n", label, label_n);
-                // printf("LINK: ip - binary = %lu\n\n", ip - binary);
-
                 if (label_n >= labels_capacity)
                 {
                     COMPILE_ERROR(TOO_MUCH_LABELS);
                 }
 
                 size_t index = ip - binary;
-                
-                for (size_t j = 0; j < label_n; ++j)
+                if (LabelIsInitialisedAgain(&labels, label, index))
                 {
-                    if (strcmp(labels[j].name, label) == 0 &&
-                        labels[j].index != index           &&
-                        labels[j].index != (size_t)(-1))
-                    {
-                        COMPILE_ERROR(REPEATING_LABEL);
-                    }
+                    COMPILE_ERROR(REPEATING_LABEL);
                 }
 
                 Label lbl = {};
 
                 lbl.index = index;
+                fprintf(stderr, "index = %x\n", index);
+
                 memcpy(lbl.name, label, 20);
 
-                size_t label_number = FindLabel(label, labels);
+                size_t label_number = FindLabel(&labels, label);
+                
                 if (label_number == labels_capacity)
-                    labels[label_n++]    = lbl;
+                {
+                    labels.labels[label_n++]    = lbl;
+                    fprintf(stderr, "case 1\n");
+                }
                 else
-                    labels[label_number] = lbl;
+                {
+                    labels.labels[label_number] = lbl;
+                    fprintf(stderr, "case 2\n");
+                }
+                // labels.size++;
 
                 continue;
             }
@@ -255,7 +378,7 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
                 {                                                         \
                     ASSIGN_CMD_ARG(jmp_num, Command, );                    \
                                                                                         \
-                    if (GetLabel(asm_code->lines[i].ptr, &ip, &labels, &label_n) == -1)  \
+                    if (GetLabel(asm_code->lines[i].ptr, &ip, &labels) == -1)            \
                         COMPILE_ERROR(CANT_READ_LABEL)                                    \
                 }                                                              \
                 else
@@ -276,17 +399,17 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
                 COMPILE_ERROR(ASM_UNKNOWN_COMMAND);
             }
 
-            #undef DEF_CMD
             #undef DEF_JMP
+            #undef DEF_CMD
+
+            #undef ADD_CMD_FLAGS
+            #undef ASSIGN_CMD_ARG
+
 
             if (strcmp(command, "HLT") == 0)
             {
                 error_code = -1;
             }
-
-            // printf("n_line = %d\n", i);
-            // for (size_t r = 0; r < labels_capacity; ++r) printf("labels[%lu] = %5s, index = %lu\n", r, labels[r].name, labels[r].index);
-            // printf("\n");
         }
     }
 
@@ -295,15 +418,10 @@ int Assemble(char **header_ptr, Text *asm_code, size_t *buffsize)
         COMPILE_ERROR(REWRITE_ASM_THERE_IS_NO_HLT);
     }
 
-    for (size_t i = 0; i < labels_capacity; ++i)
-    {
-        if (labels[i].name[0] != '\0' && labels[i].index == (size_t)(-1))
-        {
-            COMPILE_ERROR(ASM_LABEL_DOESNT_HAVE_INDEX);
-        }
-    }
+    if (LabelsVerify(&labels))
+        COMPILE_ERROR(ASM_LABEL_DOESNT_HAVE_INDEX);
 
-    free(labels);
+    DestructLabels(&labels);
 
     *buffsize          = ip - binary;
 
@@ -345,7 +463,7 @@ int main(int argc, char *argv[])
     char *header_ptr = (char *) calloc(asm_code.nlines * max_elem_size + sizeof(Header) + 1, sizeof(char));
     if (header_ptr == nullptr)
     {
-        printf("bad alloc... not enough memory... i dont want to describe this error... pls... \n");
+        printf("bad alloc... not enough memory... i dont want to describe this error... pls... aaahhh...\n");
         return -1;
     }
 
@@ -377,7 +495,3 @@ int main(int argc, char *argv[])
     
     return 0;
 }
-
-
-#undef ADD_CMD_FLAGS
-#undef ASSIGN_CMD_ARG

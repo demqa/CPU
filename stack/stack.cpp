@@ -310,7 +310,7 @@ StatusCode StackDtor(stack_t *stack){
     }
 
     if (StackIsDestructed(stack) == STACK_IS_DESTRUCTED){
-        StackDump(stack);
+        // StackDump(stack);
         return STACK_IS_DESTRUCTED;
     }
 
@@ -639,7 +639,7 @@ StatusCode StackDump_(stack_t *stack, int line, const char file[STRING_MAX_SIZE]
 #endif
     printf("    data[%p]\n",           stack->data);
 
-    if (!stack_has_errors){
+    if (!stack_has_errors && StackIsDestructed(stack) != STACK_IS_DESTRUCTED){
         printf("        {\n");
         int number_of_characters = NumberOfCharacters((int)stack->capacity - 1);
         for (size_t i = 0; i < stack->capacity; ++i){

@@ -13,6 +13,8 @@ typedef double    Elem_t;
 typedef u_int64_t Command;
 typedef u_int64_t RegNum;
 
+const size_t labels_capacity = 10;
+
 const u_int8_t IMM = 0x20;
 const u_int8_t REG = 0x40;
 const u_int8_t OSU = 0x80;
